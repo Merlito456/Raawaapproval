@@ -11,6 +11,7 @@ import base64
 import re
 from functools import wraps
 from config import Config, DevelopmentConfig, ProductionConfig
+from supabase import create_client, Client
 
 # Initialize Flask app
 app = Flask(__name__)
