@@ -54,5 +54,5 @@ Thumbs.db
 instance/
 .webassets-cache
 
-# Supabase
-supabase/.temp
+# Render
+.render/
