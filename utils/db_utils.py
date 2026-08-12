@@ -38,7 +38,7 @@ class SupabaseDB:
                 user_data = {
                     'username': Config.SUPERADMIN_USERNAME,
                     'email': Config.SUPERADMIN_EMAIL,
-                    'password_hash': Config.SUPERADMIN_PASSWORD,  # Plain text
+                    'password': Config.SUPERADMIN_PASSWORD,  # Changed from password_hash
                     'full_name': Config.SUPERADMIN_FULLNAME,
                     'role': 'superadmin',
                     'is_active': True
@@ -54,6 +54,8 @@ class SupabaseDB:
                     print(f"   Password: {Config.SUPERADMIN_PASSWORD}")
                 else:
                     print("⚠️ Failed to create superadmin account")
+            else:
+                print(f"✅ Superadmin already exists: {response.data[0]['username']}")
         except Exception as e:
             print(f"⚠️ Error ensuring superadmin: {e}")
     
@@ -82,18 +84,18 @@ class SupabaseDB:
             if response.data and len(response.data) > 0:
                 user = response.data[0]
                 print(f"🔍 User found: {user['username']}")
-                print(f"🔍 Stored password: '{user['password_hash']}'")
-                print(f"🔍 Password match: {user['password_hash'] == password}")
+                print(f"🔍 Stored password: '{user['password']}'")  # Changed from password_hash
+                print(f"🔍 Password match: {user['password'] == password}")  # Changed from password_hash
                 
-                # Plain text password verification
-                if user['password_hash'] == password:
+                # Plain text password verification - use 'password' column
+                if user['password'] == password:  # Changed from password_hash
                     print("✅ Password verified successfully")
                     return user
                 else:
                     print("❌ Password verification failed")
-                    print(f"   Stored: '{user['password_hash']}'")
+                    print(f"   Stored: '{user['password']}'")  # Changed from password_hash
                     print(f"   Provided: '{password}'")
-                    print(f"   Length stored: {len(user['password_hash'])}")
+                    print(f"   Length stored: {len(user['password'])}")  # Changed from password_hash
                     print(f"   Length provided: {len(password)}")
             else:
                 print(f"❌ User not found: '{username}'")
@@ -148,11 +150,11 @@ class SupabaseDB:
             if response.data and len(response.data) > 0:
                 return False, "Email already registered"
             
-            # Store password as plain text
+            # Store password as plain text - use 'password' column
             user_data = {
                 'username': username,
                 'email': email,
-                'password_hash': password,  # Plain text
+                'password': password,  # Changed from password_hash
                 'full_name': full_name,
                 'company': company or '',
                 'position': position or '',
@@ -175,7 +177,7 @@ class SupabaseDB:
         try:
             # If password is being updated, store as plain text
             if 'password' in user_data:
-                user_data['password_hash'] = user_data.pop('password')
+                user_data['password'] = user_data.pop('password')  # Changed from password_hash
             
             user_data['updated_at'] = datetime.now().isoformat()
             response = self.supabase.table('users')\
@@ -199,11 +201,11 @@ class SupabaseDB:
             # Store password as plain text
             password = approver_data['password']
             
-            # Create user account first
+            # Create user account first - use 'password' column
             user_data = {
                 'username': approver_data['username'],
                 'email': f"{approver_data['username']}@raawa.com",
-                'password_hash': password,  # Plain text
+                'password': password,  # Changed from password_hash
                 'full_name': f"{approver_data['first_name']} {approver_data['last_name']}",
                 'role': 'approver',
                 'is_active': True
@@ -224,7 +226,7 @@ class SupabaseDB:
                 'first_name': approver_data['first_name'],
                 'contact_no': approver_data.get('contact_no', ''),
                 'username': approver_data['username'],
-                'password_hash': password,  # Plain text
+                'password_hash': password,  # Keep as password_hash for approvers table
                 'role_type': approver_data['role_type'],
                 'region': approver_data.get('region', ''),
                 'created_by': approver_data['created_by'],
