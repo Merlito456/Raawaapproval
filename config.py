@@ -11,17 +11,19 @@ else:
     print("Running on Render - using environment variables")
 
 class Config:
-    # Supabase Configuration - Read from environment variables
+    # Supabase Configuration
     SUPABASE_URL = os.environ.get('SUPABASE_URL')
     SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
     
-    # Debug output (remove in production)
+    # Debug output
     print(f"SUPABASE_URL: {SUPABASE_URL}")
-    print(f"SUPABASE_KEY: {SUPABASE_KEY[:20] if SUPABASE_KEY else 'None'}...")
+    print(f"SUPABASE_KEY: {SUPABASE_KEY[:30] if SUPABASE_KEY else 'None'}...")
     
     # Validate credentials
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        raise ValueError(f"Missing Supabase credentials. URL: {bool(SUPABASE_URL)}, KEY: {bool(SUPABASE_KEY)}")
+    if not SUPABASE_URL:
+        raise ValueError("SUPABASE_URL environment variable is not set")
+    if not SUPABASE_KEY:
+        raise ValueError("SUPABASE_KEY environment variable is not set")
     
     # Secret Key
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
