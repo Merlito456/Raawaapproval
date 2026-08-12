@@ -92,13 +92,19 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         
+        print(f"🔐 LOGIN ATTEMPT - Username: '{username}'")
+        print(f"🔐 LOGIN ATTEMPT - Password: '{password}'")
+        
         if not username or not password:
+            print("❌ Missing username or password")
             flash('Please enter both username and password', 'danger')
             return render_template('login.html')
         
         if db:
+            print("🔍 Calling db.authenticate_user...")
             user = db.authenticate_user(username, password)
             if user:
+                print(f"✅ Authentication successful for user: {user['username']}")
                 login_user(User(user))
                 db.log_activity(user['id'], 'login', {'method': 'web'}, 
                               ip=request.remote_addr, user_agent=request.headers.get('User-Agent'))
@@ -107,8 +113,12 @@ def login():
                 if next_page:
                     return redirect(next_page)
                 return redirect(url_for('dashboard'))
-        
-        flash('Invalid username or password', 'danger')
+            else:
+                print("❌ Authentication failed - invalid credentials")
+                flash('Invalid username or password', 'danger')
+        else:
+            print("❌ Database connection unavailable")
+            flash('Database connection unavailable', 'danger')
     
     return render_template('login.html')
 
