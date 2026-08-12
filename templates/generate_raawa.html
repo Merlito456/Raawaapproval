@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Generate RAAWA{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4><i class="fas fa-plus-circle"></i> Generate New RAAWA</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="raawaForm">
+                    <!-- Requisitioner Info -->
+                    <h5>Requisitioner Information</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="requisitioner_name" class="form-label">Requisitioner Name</label>
+                            <input type="text" class="form-control" id="requisitioner_name" name="requisitioner_name" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="id_no" class="form-label">ID No.</label>
+                            <input type="text" class="form-control" id="id_no" name="id_no" required>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="department_group" class="form-label">Department/Group</label>
+                            <input type="text" class="form-control" id="department_group" name="department_group">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="contact_no" class="form-label">Contact No.</label>
+                            <input type="text" class="form-control" id="contact_no" name="contact_no">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="region" class="form-label">Region</label>
+                            <select class="form-select" id="region" name="region" required>
+                                <option value="">Select Region</option>
+                                {% for region in regions %}
+                                    <option value="{{ region }}">{{ region }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Approvers -->
+                    <h5 class="mt-4">Approvers</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="facility_manager" class="form-label">Facility Manager</label>
+                            <select class="form-select" id="facility_manager" name="facility_manager" required>
+                                <option value="">Select Facility Manager</option>
+                                {% for fm in facility_managers %}
+                                    <option value="{{ fm.id }}">{{ fm.first_name }} {{ fm.last_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="security" class="form-label">Security</label>
+                            <select class="form-select" id="security" name="security" required>
+                                <option value="">Select Security</option>
+                                {% for sec in security_officers %}
+                                    <option value="{{ sec.id }}">{{ sec.first_name }} {{ sec.last_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Personnel List -->
+                    <h5 class="mt-4">Personnel List</h5>
+                    <div class="mb-3">
+                        <label class="form-label">Personnel (Format: name, company, sec_id)</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="personnel_input" placeholder="John Doe, Company A, SEC001">
+                            <button class="btn btn-secondary" type="button" onclick="addPersonnel()">
+                                <i class="fas fa-plus"></i> Add
+                            </button>
+                        </div>
+                        <small class="text-muted">Format: name, company, sec_id (separate multiple entries with ::)</small>
+                    </div>
+                    <div id="personnel_list" class="mb-3">
+                        <!-- Personnel tags will appear here -->
+                    </div>
+                    <input type="hidden" id="personnel_list_hidden" name="personnel_list">
+
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-file-alt"></i> Generate RAAWA
+                        </button>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let personnelCount = 0;
+const MAX_PERSONNEL = 20;
+
+function addPersonnel() {
+    if (personnelCount >= MAX_PERSONNEL) {
+        alert('Maximum 20 personnel allowed');
+        return;
+    }
+    
+    const input = document.getElementById('personnel_input');
+    const value = input.value.trim();
+    if (!value) {
+        alert('Please enter personnel details');
+        return;
+    }
+    
+    // Validate format
+    const parts = value.split(',');
+    if (parts.length < 3) {
+        alert('Please use format: name, company, sec_id');
+        return;
+    }
+    
+    // Add to list
+    const list = document.getElementById('personnel_list');
+    const tag = document.createElement('span');
+    tag.className = 'badge bg-primary me-2 mb-2 p-2';
+    tag.innerHTML = `${value} <i class="fas fa-times ms-1" style="cursor:pointer" onclick="this.parentElement.remove(); updateHiddenField()"></i>`;
+    list.appendChild(tag);
+    
+    personnelCount++;
+    input.value = '';
+    updateHiddenField();
+}
+
+function updateHiddenField() {
+    const tags = document.querySelectorAll('#personnel_list .badge');
+    const values = [];
+    tags.forEach(tag => {
+        const text = tag.textContent.replace('×', '').trim();
+        values.push(text);
+    });
+    document.getElementById('personnel_list_hidden').value = values.join('::');
+}
+
+// Allow adding with Enter key
+document.getElementById('personnel_input').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        addPersonnel();
+    }
+});
+</script>
+{% endblock %}
