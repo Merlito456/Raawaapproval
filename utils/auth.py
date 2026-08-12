@@ -77,3 +77,90 @@ def validate_password_strength(password):
         return False, "Password must be at least 8 characters long"
     
     if not any(char.isdigit() for char in password):
+        return False, "Password must contain at least one number"
+    
+    if not any(char.isupper() for char in password):
+        return False, "Password must contain at least one uppercase letter"
+    
+    if not any(char.islower() for char in password):
+        return False, "Password must contain at least one lowercase letter"
+    
+    if not any(char in '!@#$%^&*()_+-=[]{}|;:,.<>?/' for char in password):
+        return False, "Password must contain at least one special character"
+    
+    return True, "Password is strong"
+
+def validate_username(username):
+    """
+    Validate username
+    Returns: (is_valid, message)
+    """
+    if len(username) < 3:
+        return False, "Username must be at least 3 characters long"
+    
+    if len(username) > 30:
+        return False, "Username must be at most 30 characters long"
+    
+    if not username.isalnum() and '_' not in username:
+        return False, "Username can only contain letters, numbers, and underscores"
+    
+    return True, "Username is valid"
+
+def validate_email(email):
+    """
+    Validate email
+    Returns: (is_valid, message)
+    """
+    import re
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(pattern, email):
+        return False, "Invalid email format"
+    return True, "Email is valid"
+
+# Permission check functions
+def can_approve_raawa(user, raawa):
+    """
+    Check if user can approve a specific RAAWA
+    """
+    if user.role == 'superadmin':
+        return True
+    
+    if user.role != 'approver':
+        return False
+    
+    # Check if user is the assigned FM or Security
+    from utils.db_utils import SupabaseDB
+    db = SupabaseDB()
+    approver = db.get_approver_by_user_id(user.id)
+    if not approver:
+        return False
+    
+    if raawa.get('facility_manager_id') == approver['id']:
+        return True
+    
+    if raawa.get('security_id') == approver['id']:
+        return True
+    
+    return False
+
+def can_view_raawa(user, raawa):
+    """
+    Check if user can view a specific RAAWA
+    """
+    if user.role == 'superadmin':
+        return True
+    
+    if user.role == 'user' and raawa.get('created_by') == user.id:
+        return True
+    
+    if user.role == 'approver':
+        from utils.db_utils import SupabaseDB
+        db = SupabaseDB()
+        approver = db.get_approver_by_user_id(user.id)
+        if approver:
+            if raawa.get('facility_manager_id') == approver['id']:
+                return True
+            if raawa.get('security_id') == approver['id']:
+                return True
+    
+    return False
