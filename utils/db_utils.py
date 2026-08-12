@@ -4,11 +4,43 @@ import hashlib
 import secrets
 import json
 import re
+import os
 from config import Config
 
 class SupabaseDB:
     def __init__(self):
         self.supabase = create_client(Config.SUPABASE_URL, Config.SUPABASE_KEY)
+        self._ensure_superadmin()
+    
+    def _ensure_superadmin(self):
+        """Ensure superadmin account exists on first run"""
+        try:
+            # Check if superadmin exists
+            response = self.supabase.table('users')\
+                .select('*')\
+                .eq('role', 'superadmin')\
+                .execute()
+            
+            if not response.data or len(response.data) == 0:
+                # Create superadmin
+                password_hash = self.hash_password(Config.SUPERADMIN_PASSWORD)
+                user_data = {
+                    'username': Config.SUPERADMIN_USERNAME,
+                    'email': Config.SUPERADMIN_EMAIL,
+                    'password_hash': password_hash,
+                    'full_name': Config.SUPERADMIN_FULLNAME,
+                    'role': 'superadmin',
+                    'is_active': True
+                }
+                
+                self.supabase.table('users')\
+                    .insert(user_data)\
+                    .execute()
+                print("Superadmin account created successfully!")
+                print(f"Username: {Config.SUPERADMIN_USERNAME}")
+                print(f"Password: {Config.SUPERADMIN_PASSWORD}")
+        except Exception as e:
+            print(f"Error ensuring superadmin: {e}")
     
     def hash_password(self, password):
         """Hash password with salt"""
@@ -19,6 +51,8 @@ class SupabaseDB:
     def verify_password(self, stored_hash, password):
         """Verify password against stored hash"""
         try:
+            if ':' not in stored_hash:
+                return False
             salt, hash_value = stored_hash.split(':')
             hash_obj = hashlib.sha256((password + salt).encode())
             return hash_obj.hexdigest() == hash_value
@@ -95,8 +129,8 @@ class SupabaseDB:
                 'email': email,
                 'password_hash': password_hash,
                 'full_name': full_name,
-                'company': company,
-                'position': position,
+                'company': company or '',
+                'position': position or '',
                 'role': 'user',
                 'is_active': True
             }
@@ -110,19 +144,6 @@ class SupabaseDB:
             return False, "Registration failed"
         except Exception as e:
             return False, str(e)
-    
-    def update_user(self, user_id, user_data):
-        """Update user information"""
-        try:
-            user_data['updated_at'] = datetime.now().isoformat()
-            response = self.supabase.table('users')\
-                .update(user_data)\
-                .eq('id', user_id)\
-                .execute()
-            return bool(response.data)
-        except Exception as e:
-            print(f"Error updating user: {e}")
-            return False
     
     # ============ APPROVERS MANAGEMENT ============
     def create_approver(self, approver_data):
@@ -138,7 +159,7 @@ class SupabaseDB:
             # Create user account first
             user_data = {
                 'username': approver_data['username'],
-                'email': f"{approver_data['username']}@system.com",
+                'email': f"{approver_data['username']}@raawa.com",
                 'password_hash': password_hash,
                 'full_name': f"{approver_data['first_name']} {approver_data['last_name']}",
                 'role': 'approver',
@@ -182,12 +203,21 @@ class SupabaseDB:
     def get_all_approvers(self):
         """Get all approvers"""
         try:
+            # Get approvers with user info
             response = self.supabase.table('approvers')\
-                .select('*, users:user_id(username, email, full_name)')\
+                .select('*')\
                 .order('created_at', desc=True)\
                 .execute()
             
-            return response.data if response.data else []
+            approvers = response.data if response.data else []
+            
+            # Get user info for each approver
+            for approver in approvers:
+                user = self.get_user_by_id(approver.get('user_id'))
+                if user:
+                    approver['user'] = user
+            
+            return approvers
         except Exception as e:
             print(f"Error getting approvers: {e}")
             return []
@@ -196,12 +226,20 @@ class SupabaseDB:
         """Get approvers by role type"""
         try:
             response = self.supabase.table('approvers')\
-                .select('*, users:user_id(username, email, full_name)')\
+                .select('*')\
                 .eq('role_type', approval_type)\
                 .eq('is_active', True)\
                 .execute()
             
-            return response.data if response.data else []
+            approvers = response.data if response.data else []
+            
+            # Get user info for each approver
+            for approver in approvers:
+                user = self.get_user_by_id(approver.get('user_id'))
+                if user:
+                    approver['user'] = user
+            
+            return approvers
         except Exception as e:
             print(f"Error getting approvers by type: {e}")
             return []
@@ -240,19 +278,6 @@ class SupabaseDB:
             print(f"Error getting approver name: {e}")
             return "Unknown"
     
-    def update_approver(self, approver_id, approver_data):
-        """Update approver information"""
-        try:
-            approver_data['updated_at'] = datetime.now().isoformat()
-            response = self.supabase.table('approvers')\
-                .update(approver_data)\
-                .eq('id', approver_id)\
-                .execute()
-            return bool(response.data)
-        except Exception as e:
-            print(f"Error updating approver: {e}")
-            return False
-    
     # ============ RAAWA MANAGEMENT ============
     def generate_raawa_number(self, region):
         """Generate unique RAAWA number"""
@@ -261,7 +286,7 @@ class SupabaseDB:
             
             # Count existing RAAWAs for today in this region
             response = self.supabase.table('raawa')\
-                .select('count')\
+                .select('raawa_no')\
                 .like('raawa_no', f'{region}-{date_str}-%')\
                 .execute()
             
@@ -290,9 +315,7 @@ class SupabaseDB:
                 'security_id': raawa_data.get('security_id'),
                 'created_by': raawa_data['created_by'],
                 'status': 'draft',
-                'expires_at': (datetime.now() + timedelta(days=30)).isoformat(),
-                'created_at': datetime.now().isoformat(),
-                'updated_at': datetime.now().isoformat()
+                'expires_at': (datetime.now() + timedelta(days=30)).isoformat()
             }
             
             response = self.supabase.table('raawa')\
@@ -325,14 +348,50 @@ class SupabaseDB:
     def get_raawa_by_id(self, raawa_id):
         """Get RAAWA by ID with all relations"""
         try:
+            # Get RAAWA
             response = self.supabase.table('raawa')\
-                .select('*, facility_manager:facility_manager_id(*, users:user_id(*)), security:security_id(*, users:user_id(*)), creator:created_by(*)')\
+                .select('*')\
                 .eq('id', raawa_id)\
                 .execute()
             
-            if response.data and len(response.data) > 0:
-                return response.data[0]
-            return None
+            if not response.data or len(response.data) == 0:
+                return None
+            
+            raawa = response.data[0]
+            
+            # Get facility manager details
+            if raawa.get('facility_manager_id'):
+                fm_response = self.supabase.table('approvers')\
+                    .select('*')\
+                    .eq('id', raawa['facility_manager_id'])\
+                    .execute()
+                if fm_response.data:
+                    raawa['facility_manager'] = fm_response.data[0]
+                    # Get user details
+                    user = self.get_user_by_id(fm_response.data[0].get('user_id'))
+                    if user:
+                        raawa['facility_manager']['user'] = user
+            
+            # Get security details
+            if raawa.get('security_id'):
+                sec_response = self.supabase.table('approvers')\
+                    .select('*')\
+                    .eq('id', raawa['security_id'])\
+                    .execute()
+                if sec_response.data:
+                    raawa['security'] = sec_response.data[0]
+                    user = self.get_user_by_id(sec_response.data[0].get('user_id'))
+                    if user:
+                        raawa['security']['user'] = user
+            
+            # Get creator details
+            if raawa.get('created_by'):
+                creator = self.get_user_by_id(raawa['created_by'])
+                if creator:
+                    raawa['creator'] = creator
+            
+            return raawa
+            
         except Exception as e:
             print(f"Error getting RAAWA: {e}")
             return None
@@ -369,43 +428,41 @@ class SupabaseDB:
     def get_raawas_for_user(self, user_id, role):
         """Get RAAWAs accessible to a user"""
         try:
-            query = self.supabase.table('raawa')\
-                .select('*, facility_manager:facility_manager_id(*), security:security_id(*), creator:created_by(*)')
+            if role == 'superadmin':
+                # Superadmin sees all
+                response = self.supabase.table('raawa')\
+                    .select('*')\
+                    .order('created_at', desc=True)\
+                    .execute()
+                return response.data if response.data else []
             
-            if role == 'user':
-                query = query.eq('created_by', user_id)
+            elif role == 'user':
+                # User sees only their own
+                response = self.supabase.table('raawa')\
+                    .select('*')\
+                    .eq('created_by', user_id)\
+                    .order('created_at', desc=True)\
+                    .execute()
+                return response.data if response.data else []
+            
             elif role == 'approver':
+                # Approver sees assigned RAAWAs
                 approver = self.get_approver_by_user_id(user_id)
-                if approver:
-                    approver_id = approver['id']
-                    query = query.or_(f'facility_manager_id.eq.{approver_id},security_id.eq.{approver_id}')
+                if not approver:
+                    return []
+                
+                approver_id = approver['id']
+                response = self.supabase.table('raawa')\
+                    .select('*')\
+                    .or_(f'facility_manager_id.eq.{approver_id},security_id.eq.{approver_id}')\
+                    .order('created_at', desc=True)\
+                    .execute()
+                return response.data if response.data else []
             
-            response = query.order('created_at', desc=True).execute()
-            return response.data if response.data else []
+            return []
+            
         except Exception as e:
             print(f"Error getting RAAWAs for user: {e}")
-            return []
-    
-    def get_all_raawas(self, filters=None):
-        """Get all RAAWAs with optional filters"""
-        try:
-            query = self.supabase.table('raawa')\
-                .select('*, facility_manager:facility_manager_id(*), security:security_id(*), creator:created_by(*)')
-            
-            if filters:
-                if filters.get('status'):
-                    query = query.eq('status', filters['status'])
-                if filters.get('region'):
-                    query = query.eq('region', filters['region'])
-                if filters.get('date_from'):
-                    query = query.gte('created_at', filters['date_from'])
-                if filters.get('date_to'):
-                    query = query.lte('created_at', filters['date_to'])
-            
-            response = query.order('created_at', desc=True).execute()
-            return response.data if response.data else []
-        except Exception as e:
-            print(f"Error getting all RAAWAs: {e}")
             return []
     
     def update_raawa(self, raawa_id, update_data):
@@ -445,6 +502,8 @@ class SupabaseDB:
                 update_data['security_signature'] = signature_data
                 update_data['status'] = 'approved'
                 update_data['approved_at'] = datetime.now().isoformat()
+            else:
+                return False
             
             response = self.supabase.table('raawa')\
                 .update(update_data)\
@@ -456,9 +515,12 @@ class SupabaseDB:
             
             # If fully approved, generate PDF
             if update_data.get('status') == 'approved':
-                from utils.raawa_generator import RAAWAGenerator
-                generator = RAAWAGenerator(self)
-                generator.generate_raawa_pdf(raawa_id)
+                try:
+                    from utils.raawa_generator import RAAWAGenerator
+                    generator = RAAWAGenerator(self)
+                    generator.generate_raawa_pdf(raawa_id)
+                except Exception as e:
+                    print(f"Error generating PDF: {e}")
             
             return True
             
@@ -470,7 +532,7 @@ class SupabaseDB:
         """Get RAAWA by ESig reference number"""
         try:
             response = self.supabase.table('raawa')\
-                .select('*, facility_manager:facility_manager_id(*), security:security_id(*)')\
+                .select('*')\
                 .eq('esig_ref_no', esig_ref)\
                 .execute()
             
@@ -480,22 +542,6 @@ class SupabaseDB:
         except Exception as e:
             print(f"Error getting RAAWA by ESig ref: {e}")
             return None
-    
-    def get_expired_raawas(self):
-        """Get expired RAAWAs"""
-        try:
-            now = datetime.now().isoformat()
-            response = self.supabase.table('raawa')\
-                .select('*')\
-                .lt('expires_at', now)\
-                .neq('status', 'expired')\
-                .neq('status', 'approved')\
-                .execute()
-            
-            return response.data if response.data else []
-        except Exception as e:
-            print(f"Error getting expired RAAWAs: {e}")
-            return []
     
     def mark_raawa_expired(self, raawa_id):
         """Mark RAAWA as expired"""
@@ -525,17 +571,17 @@ class SupabaseDB:
         stats['total'] = len(raawas)
         
         for r in raawas:
-            if r['status'] == 'approved':
+            if r.get('status') == 'approved':
                 stats['approved'] += 1
-            elif r['status'] == 'expired':
+            elif r.get('status') == 'expired':
                 stats['expired'] += 1
-            elif r['status'] == 'fm_pending':
+            elif r.get('status') == 'fm_pending':
                 stats['fm_pending'] += 1
                 stats['pending'] += 1
-            elif r['status'] == 'security_pending':
+            elif r.get('status') == 'security_pending':
                 stats['security_pending'] += 1
                 stats['pending'] += 1
-            elif r['status'] == 'draft':
+            elif r.get('status') == 'draft':
                 stats['pending'] += 1
         
         return stats
@@ -550,8 +596,7 @@ class SupabaseDB:
                 'message': message,
                 'type': type,
                 'link': link,
-                'is_read': False,
-                'created_at': datetime.now().isoformat()
+                'is_read': False
             }
             
             response = self.supabase.table('notifications')\
@@ -582,7 +627,7 @@ class SupabaseDB:
         """Get count of unread notifications"""
         try:
             response = self.supabase.table('notifications')\
-                .select('count')\
+                .select('id')\
                 .eq('user_id', user_id)\
                 .eq('is_read', False)\
                 .execute()
@@ -627,8 +672,7 @@ class SupabaseDB:
                 'message_type': message_data['message_type'],
                 'region': message_data.get('region'),
                 'content': message_data['content'],
-                'is_read': False,
-                'created_at': datetime.now().isoformat()
+                'is_read': False
             }
             
             response = self.supabase.table('messages')\
@@ -645,15 +689,24 @@ class SupabaseDB:
     def get_messages(self, user_id, limit=100):
         """Get messages for a user"""
         try:
-            # Get global messages, regional messages, and DMs
+            # Get messages
             response = self.supabase.table('messages')\
-                .select('*, sender:sender_id(*)')\
-                .or_(f'message_type.eq.global,message_type.eq.regional,recipient_id.eq.{user_id}')\
+                .select('*')\
+                .or_(f'message_type.eq.global,recipient_id.eq.{user_id},sender_id.eq.{user_id}')\
                 .order('created_at', desc=True)\
                 .limit(limit)\
                 .execute()
             
-            return response.data if response.data else []
+            messages = response.data if response.data else []
+            
+            # Get sender details
+            for msg in messages:
+                if msg.get('sender_id'):
+                    sender = self.get_user_by_id(msg['sender_id'])
+                    if sender:
+                        msg['sender'] = sender
+            
+            return messages
         except Exception as e:
             print(f"Error getting messages: {e}")
             return []
@@ -662,28 +715,21 @@ class SupabaseDB:
         """Get a single message"""
         try:
             response = self.supabase.table('messages')\
-                .select('*, sender:sender_id(*)')\
+                .select('*')\
                 .eq('id', message_id)\
                 .execute()
             
             if response.data and len(response.data) > 0:
-                return response.data[0]
+                message = response.data[0]
+                if message.get('sender_id'):
+                    sender = self.get_user_by_id(message['sender_id'])
+                    if sender:
+                        message['sender'] = sender
+                return message
             return None
         except Exception as e:
             print(f"Error getting message: {e}")
             return None
-    
-    def mark_message_read(self, message_id):
-        """Mark message as read"""
-        try:
-            response = self.supabase.table('messages')\
-                .update({'is_read': True, 'read_at': datetime.now().isoformat()})\
-                .eq('id', message_id)\
-                .execute()
-            return bool(response.data)
-        except Exception as e:
-            print(f"Error marking message read: {e}")
-            return False
     
     # ============ ACTIVITY LOGS ============
     def log_activity(self, user_id, action, details=None, ip=None, user_agent=None):
@@ -694,8 +740,7 @@ class SupabaseDB:
                 'action': action,
                 'details': json.dumps(details) if details else None,
                 'ip_address': ip,
-                'user_agent': user_agent,
-                'created_at': datetime.now().isoformat()
+                'user_agent': user_agent
             }
             
             response = self.supabase.table('activity_logs')\
@@ -706,23 +751,6 @@ class SupabaseDB:
         except Exception as e:
             print(f"Error logging activity: {e}")
             return False
-    
-    def get_activity_logs(self, user_id=None, limit=100):
-        """Get activity logs"""
-        try:
-            query = self.supabase.table('activity_logs')\
-                .select('*, user:user_id(*)')\
-                .order('created_at', desc=True)\
-                .limit(limit)
-            
-            if user_id:
-                query = query.eq('user_id', user_id)
-            
-            response = query.execute()
-            return response.data if response.data else []
-        except Exception as e:
-            print(f"Error getting activity logs: {e}")
-            return []
     
     # ============ USERS ============
     def get_all_users(self):
@@ -736,18 +764,4 @@ class SupabaseDB:
             return response.data if response.data else []
         except Exception as e:
             print(f"Error getting all users: {e}")
-            return []
-    
-    def get_users_by_role(self, role):
-        """Get users by role"""
-        try:
-            response = self.supabase.table('users')\
-                .select('id, username, email, full_name, role')\
-                .eq('role', role)\
-                .eq('is_active', True)\
-                .execute()
-            
-            return response.data if response.data else []
-        except Exception as e:
-            print(f"Error getting users by role: {e}")
             return []
