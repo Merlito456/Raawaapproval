@@ -1,14 +1,27 @@
 import os
-from dotenv import load_dotenv
+import sys
 
-# Try to load .env only if it exists (for local development)
-if os.path.exists('.env'):
-    load_dotenv()
+# Only load .env if NOT on Render
+if not os.environ.get('RENDER'):
+    from dotenv import load_dotenv
+    if os.path.exists('.env'):
+        load_dotenv()
+        print("Loaded .env file (development mode)")
+else:
+    print("Running on Render - using environment variables")
 
 class Config:
     # Supabase Configuration - Read from environment variables
     SUPABASE_URL = os.environ.get('SUPABASE_URL')
     SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
+    
+    # Debug output (remove in production)
+    print(f"SUPABASE_URL: {SUPABASE_URL}")
+    print(f"SUPABASE_KEY: {SUPABASE_KEY[:20] if SUPABASE_KEY else 'None'}...")
+    
+    # Validate credentials
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise ValueError(f"Missing Supabase credentials. URL: {bool(SUPABASE_URL)}, KEY: {bool(SUPABASE_KEY)}")
     
     # Secret Key
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
