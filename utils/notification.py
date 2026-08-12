@@ -13,12 +13,12 @@ class NotificationManager:
         
         if status == 'fm_pending':
             # Notify Facility Manager
-            if raawa.get('facility_manager'):
-                fm_user = self.db.get_user_by_id(raawa['facility_manager']['user_id'])
-                if fm_user:
+            if raawa.get('facility_manager_id'):
+                fm = raawa.get('facility_manager', {})
+                if fm and fm.get('user_id'):
                     self.db.create_notification(
-                        fm_user['id'],
-                        f"RAAWA {raawa['raawa_no']} Ready for Approval",
+                        fm['user_id'],
+                        f"RAAWA {raawa['raawa_no']} Ready for FM Approval",
                         f"Please review and sign RAAWA {raawa['raawa_no']} from {raawa['requisitioner_name']}",
                         'approval',
                         f"/raawa/{raawa_id}"
@@ -26,11 +26,11 @@ class NotificationManager:
         
         elif status == 'security_pending':
             # Notify Security
-            if raawa.get('security'):
-                sec_user = self.db.get_user_by_id(raawa['security']['user_id'])
-                if sec_user:
+            if raawa.get('security_id'):
+                sec = raawa.get('security', {})
+                if sec and sec.get('user_id'):
                     self.db.create_notification(
-                        sec_user['id'],
+                        sec['user_id'],
                         f"RAAWA {raawa['raawa_no']} Ready for Security Approval",
                         f"Please review and sign RAAWA {raawa['raawa_no']} from {raawa['requisitioner_name']}",
                         'approval',
@@ -48,7 +48,7 @@ class NotificationManager:
             self.db.create_notification(
                 raawa['created_by'],
                 f"RAAWA {raawa['raawa_no']} {approval_type.replace('_', ' ').title()} Approved",
-                f"The {approval_type} has approved your RAAWA {raawa['raawa_no']}",
+                f"The {approval_type.replace('_', ' ')} has approved your RAAWA {raawa['raawa_no']}",
                 'success',
                 f"/raawa/{raawa_id}"
             )
@@ -56,11 +56,11 @@ class NotificationManager:
         # If fully approved, notify both approvers
         if raawa.get('status') == 'approved':
             # Notify Facility Manager
-            if raawa.get('facility_manager'):
-                fm_user = self.db.get_user_by_id(raawa['facility_manager']['user_id'])
-                if fm_user:
+            if raawa.get('facility_manager_id'):
+                fm = raawa.get('facility_manager', {})
+                if fm and fm.get('user_id'):
                     self.db.create_notification(
-                        fm_user['id'],
+                        fm['user_id'],
                         f"RAAWA {raawa['raawa_no']} Fully Approved",
                         f"RAAWA {raawa['raawa_no']} has been fully approved",
                         'success',
@@ -68,11 +68,11 @@ class NotificationManager:
                     )
             
             # Notify Security
-            if raawa.get('security'):
-                sec_user = self.db.get_user_by_id(raawa['security']['user_id'])
-                if sec_user:
+            if raawa.get('security_id'):
+                sec = raawa.get('security', {})
+                if sec and sec.get('user_id'):
                     self.db.create_notification(
-                        sec_user['id'],
+                        sec['user_id'],
                         f"RAAWA {raawa['raawa_no']} Fully Approved",
                         f"RAAWA {raawa['raawa_no']} has been fully approved",
                         'success',
@@ -96,11 +96,11 @@ class NotificationManager:
             )
         
         # Notify Facility Manager
-        if raawa.get('facility_manager'):
-            fm_user = self.db.get_user_by_id(raawa['facility_manager']['user_id'])
-            if fm_user:
+        if raawa.get('facility_manager_id'):
+            fm = raawa.get('facility_manager', {})
+            if fm and fm.get('user_id'):
                 self.db.create_notification(
-                    fm_user['id'],
+                    fm['user_id'],
                     f"RAAWA {raawa['raawa_no']} Expired",
                     f"RAAWA {raawa['raawa_no']} has expired",
                     'danger',
@@ -108,11 +108,11 @@ class NotificationManager:
                 )
         
         # Notify Security
-        if raawa.get('security'):
-            sec_user = self.db.get_user_by_id(raawa['security']['user_id'])
-            if sec_user:
+        if raawa.get('security_id'):
+            sec = raawa.get('security', {})
+            if sec and sec.get('user_id'):
                 self.db.create_notification(
-                    sec_user['id'],
+                    sec['user_id'],
                     f"RAAWA {raawa['raawa_no']} Expired",
                     f"RAAWA {raawa['raawa_no']} has expired",
                     'danger',
