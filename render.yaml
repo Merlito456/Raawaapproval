@@ -9,9 +9,9 @@ services:
       - key: SUPABASE_URL
         value: https://ppmhmbcmbqhgqelfdnvk.supabase.co
       - key: SUPABASE_KEY
-        value: sb_publishable_5ComPSfppVJ6lWwpYbwA8A_n7HJn6dG
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBwbWhtYmNtYnFoZ3FlbGZkbnZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MjkxMjcsImV4cCI6MjEwMjEwNTEyN30.uUceevaFmeMUbZvRyqz6XK_mMOjQ7BBPnj4THMNZbho
       - key: SECRET_KEY
-        generateValue: true
+        value: df89c312430a47299f02e493b972250b
       - key: FLASK_ENV
         value: production
       - key: DEBUG
@@ -20,3 +20,5 @@ services:
         value: 3.11.4
       - key: PORT
         value: 10000
+      - key: RENDER
+        value: true
