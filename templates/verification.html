@@ -75,4 +75,52 @@ function verifyRAAWA() {
                     <p><strong>Requisitioner:</strong> ${data.requisitioner}</p>
                     <p><strong>Region:</strong> ${data.region}</p>
                     <p><strong>Created:</strong> ${data.created_at}</p>
-                    <p><strong>Facility Manager:</strong> ${data.facility
+                    <p><strong>Facility Manager:</strong> ${data.facility_manager}</p>
+                    <p><strong>Security:</strong> ${data.security}</p>
+                </div>
+            `;
+        } else {
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle"></i> RAAWA not found
+                </div>
+            `;
+        }
+    });
+}
+
+function verifyESignature() {
+    const esigRef = document.getElementById('esig_ref').value.trim();
+    if (!esigRef) {
+        alert('Please enter ESig Reference No.');
+        return;
+    }
+    
+    fetch('/verify_esignature', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({esig_ref: esigRef})
+    })
+    .then(response => response.json())
+    .then(data => {
+        const resultDiv = document.getElementById('result');
+        if (data.found) {
+            resultDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <h5><i class="fas fa-check-circle"></i> Signature Found</h5>
+                    <p><strong>RAAWA No.:</strong> ${data.raawa_no}</p>
+                    <p><strong>Approver:</strong> ${data.approver}</p>
+                    <p><strong>Approval Date:</strong> ${data.approval_date}</p>
+                </div>
+            `;
+        } else {
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle"></i> Signature not found
+                </div>
+            `;
+        }
+    });
+}
+</script>
+{% endblock %}
