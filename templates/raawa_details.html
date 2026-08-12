@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+
+{% block title %}RAAWA Details - {{ raawa.raawa_no }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0"><i class="fas fa-file-alt"></i> RAAWA: {{ raawa.raawa_no }}</h4>
+                <div>
+                    <a href="{{ url_for('download_raawa', raawa_id=raawa.id) }}" class="btn btn-light btn-sm">
+                        <i class="fas fa-download"></i> Download
+                    </a>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-light btn-sm">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Status Badge -->
+                <div class="mb-3">
+                    <strong>Status:</strong>
+                    {% if raawa.status == 'draft' %}
+                        <span class="badge bg-secondary">Draft</span>
+                    {% elif raawa.status == 'fm_pending' %}
+                        <span class="badge bg-warning">Facility Manager Pending</span>
+                    {% elif raawa.status == 'security_pending' %}
+                        <span class="badge bg-info">Security Pending</span>
+                    {% elif raawa.status == 'approved' %}
+                        <span class="badge bg-success">Approved</span>
+                    {% elif raawa.status == 'expired' %}
+                        <span class="badge bg-danger">Expired</span>
+                    {% endif %}
+                    
+                    {% if raawa.expires_at and raawa.expires_at < now %}
+                        <span class="badge bg-danger">EXPIRED</span>
+                    {% endif %}
+                </div>
+
+                <!-- Requisitioner Info -->
+                <h5>Requisitioner Information</h5>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <p><strong>Name:</strong> {{ raawa.requisitioner_name }}</p>
+                        <p><strong>ID No.:</strong> {{ raawa.id_no }}</p>
+                        <p><strong>Department/Group:</strong> {{ raawa.department_group or 'N/A' }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Contact No.:</strong> {{ raawa.contact_no or 'N/A' }}</p>
+                        <p><strong>Region:</strong> <span class="badge bg-info">{{ raawa.region }}</span></p>
+                        <p><strong>Created:</strong> {{ raawa.created_at[:10] }}</p>
+                    </div>
+                </div>
+
+                <!-- Approvers -->
+                <h5>Approvers</h5>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-warning">
+                                <strong>Facility Manager</strong>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Name:</strong> {{ raawa.facility_manager.first_name if raawa.facility_manager else 'Not Assigned' }}</p>
+                                {% if raawa.facility_manager_signature %}
+                                    <p><strong>Signature:</strong> <span class="text-success"><i class="fas fa-check-circle"></i> Signed</span></p>
+                                    <p><strong>ESig Ref No.:</strong> {{ raawa.esig_ref_no or 'N/A' }}</p>
+                                    <div class="border p-2 text-center">
+                                        <img src="data:image/png;base64,{{ raawa.facility_manager_signature }}" alt="FM Signature" style="max-width:200px;">
+                                    </div>
+                                {% else %}
+                                    <p class="text-warning"><i class="fas fa-clock"></i> Pending Signature</p>
+                                    {% if current_user.is_approver and current_user.id == raawa.facility_manager.user_id %}
+                                        <button class="btn btn-primary btn-sm" onclick="openSignaturePad('fm')">
+                                            <i class="fas fa-pen"></i> Sign as FM
+                                        </button>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <strong>Security</strong>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Name:</strong> {{ raawa.security.first_name if raawa.security else 'Not Assigned' }}</p>
+                                {% if raawa.security_signature %}
+                                    <p><strong>Signature:</strong> <span class="text-success"><i class="fas fa-check-circle"></i> Signed</span></p>
+                                    <div class="border p-2 text-center">
+                                        <img src="data:image/png;base64,{{ raawa.security_signature }}" alt="Security Signature" style="max-width:200px;">
+                                    </div>
+                                {% else %}
+                                    <p class="text-warning"><i class="fas fa-clock"></i> Pending Signature</p>
+                                    {% if current_user.is_approver and current_user.id == raawa.security.user_id %}
+                                        <button class="btn btn-primary btn-sm" onclick="openSignaturePad('security')">
+                                            <i class="fas fa-pen"></i> Sign as Security
+                                        </button>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Personnel List -->
+                <h5>Personnel List</h5>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Name</th>
+                                <th>Company</th>
+                                <th>SEC ID</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for person in personnel %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>{{ person.name }}</td>
+                                <td>{{ person.company or 'N/A' }}</td>
+                                <td>{{ person.sec_id or 'N/A' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Signature Pad Modal -->
+<div class="modal fade" id="signatureModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Electronic Signature</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <canvas id="signaturePad" width="400" height="200" style="border:1px solid #ccc;touch-action:none;"></canvas>
+                <div class="mt-2">
+                    <label for="esig_ref_no" class="form-label">ESig Reference No.</label>
+                    <input type="text" class="form-control" id="esig_ref_no" placeholder="Enter reference number" required>
+                </div>
+                <div class="mt-2">
+                    <button class="btn btn-secondary btn-sm" onclick="clearSignature()">Clear</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitSignature()">
+                    <i class="fas fa-check"></i> Submit Signature
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let signatureType = '';
+let isDrawing = false;
+let lastX = 0;
+let lastY = 0;
+
+function openSignaturePad(type) {
+    signatureType = type;
+    const modal = new bootstrap.Modal(document.getElementById('signatureModal'));
+    modal.show();
+    
+    // Setup canvas after modal is shown
+    setTimeout(() => {
+        const canvas = document.getElementById('signaturePad');
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Mouse events
+        canvas.onmousedown = startDrawing;
+        canvas.onmousemove = draw;
+        canvas.onmouseup = stopDrawing;
+        canvas.onmouseleave = stopDrawing;
+        
+        // Touch events
+        canvas.ontouchstart = handleTouchStart;
+        canvas.ontouchmove = handleTouchMove;
+        canvas.ontouchend = stopDrawing;
+    }, 100);
+}
+
+function startDrawing(e) {
+    isDrawing = true;
+    const rect = e.target.getBoundingClientRect();
+    lastX = e.clientX - rect.left;
+    lastY = e.clientY - rect.top;
+}
+
+function draw(e) {
+    if (!isDrawing) return;
+    const canvas = document.getElementById('signaturePad');
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(x, y);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    lastX = x;
+    lastY = y;
+}
+
+function handleTouchStart(e) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const canvas = document.getElementById('signaturePad');
+    const rect = canvas.getBoundingClientRect();
+    lastX = touch.clientX - rect.left;
+    lastY = touch.clientY - rect.top;
+    isDrawing = true;
+}
+
+function handleTouchMove(e) {
+    e.preventDefault();
+    if (!isDrawing) return;
+    const touch = e.touches[0];
+    const canvas = document.getElementById('signaturePad');
+    const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    const ctx = canvas.getContext('2d');
+    
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(x, y);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    lastX = x;
+    lastY = y;
+}
+
+function stopDrawing() {
+    isDrawing = false;
+}
+
+function clearSignature() {
+    const canvas = document.getElementById('signaturePad');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function submitSignature() {
+    const refNo = document.getElementById('esig_ref_no').value.trim();
+    if (!refNo) {
+        alert('Please enter ESig Reference No.');
+        return;
+    }
+    
+    const canvas = document.getElementById('signaturePad');
+    const signatureData = canvas.toDataURL('image/png').split(',')[1];
+    
+    fetch(`/approve_raawa/{{ raawa.id }}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            signature: signatureData,
+            esig_ref_no: refNo
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to submit signature'));
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error.message);
+    });
+}
+</script>
+{% endblock %}
