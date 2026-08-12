@@ -207,4 +207,163 @@ class RAAWAGenerator:
             story.append(Paragraph("RAAWA APPLICATION - APPROVED", title_style))
             
             # RAAWA No
-            raawa
+            raawa_style = ParagraphStyle(
+                'RaawaStyle',
+                parent=styles['Normal'],
+                fontSize=14,
+                textColor=colors.blue
+            )
+            story.append(Paragraph(f"RAAWA No: <b>{raawa['raawa_no']}</b>", raawa_style))
+            story.append(Spacer(1, 0.2*inch))
+            
+            # Requisitioner Info
+            story.append(Paragraph("REQUISITIONER INFORMATION", styles['Heading2']))
+            info_data = [
+                ['Requisitioner Name:', raawa['requisitioner_name']],
+                ['ID No.:', raawa['id_no']],
+                ['Department/Group:', raawa.get('department_group', '')],
+                ['Contact No.:', raawa.get('contact_no', '')],
+                ['Region:', raawa['region']]
+            ]
+            
+            info_table = Table(info_data, colWidths=[2*inch, 3*inch])
+            info_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
+            ]))
+            story.append(info_table)
+            story.append(Spacer(1, 0.3*inch))
+            
+            # Approvers
+            story.append(Paragraph("APPROVERS", styles['Heading2']))
+            facility_manager = self.db.get_approver_name(raawa.get('facility_manager_id'))
+            security = self.db.get_approver_name(raawa.get('security_id'))
+            
+            approver_data = [
+                ['Facility Manager:', facility_manager, 
+                 'Signed' if raawa.get('facility_manager_signature') else 'Pending'],
+                ['Security:', security,
+                 'Signed' if raawa.get('security_signature') else 'Pending']
+            ]
+            
+            approver_table = Table(approver_data, colWidths=[2*inch, 2*inch, 1.5*inch])
+            approver_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
+            ]))
+            story.append(approver_table)
+            story.append(Spacer(1, 0.3*inch))
+            
+            # Personnel List
+            story.append(Paragraph("PERSONNEL LIST", styles['Heading2']))
+            
+            if personnel:
+                person_data = [['#', 'Name', 'Company', 'SEC ID']]
+                for idx, person in enumerate(personnel, 1):
+                    person_data.append([
+                        str(idx),
+                        person['name'],
+                        person.get('company', ''),
+                        person.get('sec_id', '')
+                    ])
+                
+                person_table = Table(person_data, colWidths=[0.5*inch, 2.5*inch, 2*inch, 1.5*inch])
+                person_table.setStyle(TableStyle([
+                    ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 9),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+                ]))
+                story.append(person_table)
+            else:
+                story.append(Paragraph("No personnel listed", styles['Normal']))
+            
+            story.append(Spacer(1, 0.3*inch))
+            
+            # Signatures
+            story.append(Paragraph("ELECTRONIC SIGNATURES", styles['Heading2']))
+            
+            # Add signature images if available
+            signature_data = []
+            
+            if raawa.get('facility_manager_signature'):
+                try:
+                    sig_data = base64.b64decode(raawa['facility_manager_signature'])
+                    sig_img = PILImage.open(io.BytesIO(sig_data))
+                    # Resize signature
+                    sig_img.thumbnail((150, 60))
+                    sig_buffer = io.BytesIO()
+                    sig_img.save(sig_buffer, format='PNG')
+                    sig_buffer.seek(0)
+                    signature_data.append(['Facility Manager:', RLImage(sig_buffer, width=1.5*inch, height=0.5*inch)])
+                except:
+                    signature_data.append(['Facility Manager:', 'Signature not available'])
+            else:
+                signature_data.append(['Facility Manager:', 'Not Signed'])
+            
+            if raawa.get('security_signature'):
+                try:
+                    sig_data = base64.b64decode(raawa['security_signature'])
+                    sig_img = PILImage.open(io.BytesIO(sig_data))
+                    sig_img.thumbnail((150, 60))
+                    sig_buffer = io.BytesIO()
+                    sig_img.save(sig_buffer, format='PNG')
+                    sig_buffer.seek(0)
+                    signature_data.append(['Security:', RLImage(sig_buffer, width=1.5*inch, height=0.5*inch)])
+                except:
+                    signature_data.append(['Security:', 'Signature not available'])
+            else:
+                signature_data.append(['Security:', 'Not Signed'])
+            
+            signature_table = Table(signature_data, colWidths=[2*inch, 3.5*inch])
+            signature_table.setStyle(TableStyle([
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
+            ]))
+            story.append(signature_table)
+            
+            # Footer
+            story.append(Spacer(1, 0.5*inch))
+            footer_style = ParagraphStyle(
+                'Footer',
+                parent=styles['Normal'],
+                fontSize=8,
+                textColor=colors.grey,
+                alignment=1
+            )
+            story.append(Paragraph(
+                f"ESig Reference No.: {raawa.get('esig_ref_no', 'N/A')} | "
+                f"Approved on: {raawa.get('approved_at', 'N/A')}",
+                footer_style
+            ))
+            story.append(Paragraph(
+                f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                footer_style
+            ))
+            
+            # Build PDF
+            doc.build(story)
+            
+            # Update database with PDF path
+            self.db.update_raawa(raawa_id, {'final_file_path': filepath})
+            
+            return filepath
+            
+        except Exception as e:
+            print(f"Error generating PDF: {e}")
+            raise
+    
+    def get_template_excel(self):
+        """Get the template Excel file for RAAWA generation"""
+        # This method is for reference - the actual template is generated dynamically
+        pass
