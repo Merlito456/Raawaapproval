@@ -1,24 +1,25 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+# Try to load .env only if it exists (for local development)
+if os.path.exists('.env'):
+    load_dotenv()
 
 class Config:
-    # Supabase Configuration
-    SUPABASE_URL = "https://ppmhmbcmbqhgqelfdnvk.supabase.co"
-    SUPABASE_KEY = "sb_publishable_5ComPSfppVJ6lWwpYbwA8A_n7HJn6dG"
-    SUPABASE_PUBLIC_KEY = "sb_publishable_5ComPSfppVJ6lWwpYbwA8A_n7HJn6dG"
+    # Supabase Configuration - Read from environment variables
+    SUPABASE_URL = os.environ.get('SUPABASE_URL')
+    SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
     
     # Secret Key
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production-2026'
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
     
     # Session Configuration
     SESSION_TYPE = 'filesystem'
-    PERMANENT_SESSION_LIFETIME = 3600  # 1 hour
+    PERMANENT_SESSION_LIFETIME = 3600
     
     # Upload Settings
-    UPLOAD_FOLDER = 'uploads'
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
+    UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024
     ALLOWED_EXTENSIONS = {'xlsx', 'xls', 'pdf', 'png', 'jpg', 'jpeg'}
     
     # RAAWA Settings
@@ -33,16 +34,11 @@ class Config:
     # Messaging Settings
     MESSAGE_TYPES = ['global', 'regional', 'dm']
     
-    # File Settings
-    TEMPLATE_FILE = 'templates/raawa_template.xlsx'
-    
-    # Deployment Settings
-    DEBUG = False
-    TESTING = False
-    
-    @staticmethod
-    def init_app(app):
-        pass
+    # Superadmin default account
+    SUPERADMIN_USERNAME = 'admin'
+    SUPERADMIN_PASSWORD = 'Admin@2026'
+    SUPERADMIN_EMAIL = 'admin@raawa.com'
+    SUPERADMIN_FULLNAME = 'System Administrator'
 
 class DevelopmentConfig(Config):
     DEBUG = True
@@ -51,11 +47,6 @@ class DevelopmentConfig(Config):
 class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
-    
-    @classmethod
-    def init_app(cls, app):
-        Config.init_app(app)
-        # Production-specific configurations
 
 config = {
     'development': DevelopmentConfig,
