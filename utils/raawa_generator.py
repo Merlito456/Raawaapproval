@@ -244,9 +244,9 @@ class RAAWAGenerator:
             
             approver_data = [
                 ['Facility Manager:', facility_manager, 
-                 'Signed' if raawa.get('facility_manager_signature') else 'Pending'],
+                 '✓ Signed' if raawa.get('facility_manager_signature') else 'Pending'],
                 ['Security:', security,
-                 'Signed' if raawa.get('security_signature') else 'Pending']
+                 '✓ Signed' if raawa.get('security_signature') else 'Pending']
             ]
             
             approver_table = Table(approver_data, colWidths=[2*inch, 2*inch, 1.5*inch])
@@ -362,8 +362,3 @@ class RAAWAGenerator:
         except Exception as e:
             print(f"Error generating PDF: {e}")
             raise
-    
-    def get_template_excel(self):
-        """Get the template Excel file for RAAWA generation"""
-        # This method is for reference - the actual template is generated dynamically
-        pass
