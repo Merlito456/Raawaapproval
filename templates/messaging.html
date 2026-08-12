@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Messages{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0"><i class="fas fa-comments"></i> Messages</h4>
+                <div>
+                    <select class="form-select form-select-sm bg-dark text-white" id="messageType" onchange="updateMessageUI()">
+                        <option value="global">Global</option>
+                        <option value="regional">Regional</option>
+                        <option value="dm">Direct Message</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Message Input Area -->
+                <div class="mb-3">
+                    <div id="dm_recipient_div" style="display:none;">
+                        <label for="recipient" class="form-label">Recipient</label>
+                        <select class="form-select" id="recipient">
+                            <option value="">Select User</option>
+                            {% for user in users %}
+                                <option value="{{ user.id }}">{{ user.full_name }} ({{ user.username }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div id="region_select_div" style="display:none;">
+                        <label for="region_select" class="form-label">Region</label>
+                        <select class="form-select" id="region_select">
+                            <option value="MIN">MIN</option>
+                            <option value="LUZ">LUZ</option>
+                            <option value="VIS">VIS</option>
+                        </select>
+                    </div>
+                    <div class="input-group mt-2">
+                        <input type="text" class="form-control" id="messageInput" placeholder="Type your message...">
+                        <button class="btn btn-primary" onclick="sendMessage()">
+                            <i class="fas fa-paper-plane"></i> Send
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Messages Display -->
+                <div id="messageArea" style="height:400px;overflow-y:auto;border:1px solid #ddd;border-radius:5px;padding:10px;">
+                    {% for message in messages %}
+                        <div class="message-item mb-2">
+                            <div class="d-flex justify-content-between">
+                                <strong>{{ message.sender.full_name }}</strong>
+                                <small class="text-muted">{{ message.created_at }}</small>
+                            </div>
+                            <div class="msg-content">{{ message.content }}</div>
+                            <small class="text-muted">{{ message.message_type }}</small>
+                            <hr>
+                        </div>
+                    {% else %}
+                        <p class="text-center text-muted">No messages yet</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const socket = io();
+
+// Socket connection
+socket.on('connect', function() {
+    console.log('Connected to websocket');
+});
+
+// Join rooms
+socket.on('new_message', function(message) {
+    displayMessage(message);
+});
+
+function updateMessageUI() {
+    const type = document.getElementById('messageType').value;
+    document.getElementById('dm_recipient_div').style.display = type === 'dm' ? 'block' : 'none';
+    document.getElementById('region_select_div').style.display = type === 'regional' ? 'block' : 'none';
+}
+
+function sendMessage() {
+    const type = document.getElementById('messageType').value;
+    const content = document.getElementById('messageInput').value.trim();
+    
+    if (!content) {
+        alert('Please enter a message');
+        return;
+    }
+    
+    const data = {
+        message_type: type,
+        content: content,
+        recipient_id: null,
+        region: null
+    };
+    
+    if (type === 'dm') {
+        data.recipient_id = document.getElementById('recipient').value;
+        if (!data.recipient_id) {
+            alert('Please select a recipient');
+            return;
+        }
+    } else if (type === 'regional') {
+        data.region = document.getElementById('region_select').value;
+    }
+    
+    socket.emit('send_message', data);
+    document.getElementById('messageInput').value = '';
+}
+
+function displayMessage(message) {
+    const messageArea = document.getElementById('messageArea');
+    const div = document.createElement('div');
+    div.className = 'message-item mb-2';
+    div.innerHTML = `
+        <div class="d-flex justify-content-between">
+            <strong>${message.sender.full_name}</strong>
+            <small class="text-muted">${message.created_at}</small>
+        </div>
+        <div class="msg-content">${message.content}</div>
+        <small class="text-muted">${message.message_type}</small>
+        <hr>
+    `;
+    messageArea.appendChild(div);
+    messageArea.scrollTop = messageArea.scrollHeight;
+}
+
+// Auto-scroll to bottom
+document.addEventListener('DOMContentLoaded', function() {
+    const messageArea = document.getElementById('messageArea');
+    messageArea.scrollTop = messageArea.scrollHeight;
+});
+
+// Enter key to send
+document.getElementById('messageInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        sendMessage();
+    }
+});
+</script>
+{% endblock %}
