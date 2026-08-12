@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - RAAWA System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Statistics Cards -->
+    <div class="col-md-3 mb-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-file-alt"></i> Total RAAWAs</h5>
+                <h2 class="card-text">{{ stats.total }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-clock"></i> Pending</h5>
+                <h2 class="card-text">{{ stats.pending }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-check-circle"></i> Approved</h5>
+                <h2 class="card-text">{{ stats.approved }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-exclamation-triangle"></i> Expired</h5>
+                <h2 class="card-text">{{ stats.expired }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- RAAWA List -->
+<div class="card">
+    <div class="card-header">
+        <h5><i class="fas fa-list"></i> Your RAAWAs</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>RAAWA No.</th>
+                        <th>Requisitioner</th>
+                        <th>Region</th>
+                        <th>Facility Manager</th>
+                        <th>Security</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for raawa in raawas %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('raawa_details', raawa_id=raawa.id) }}">
+                                {{ raawa.raawa_no }}
+                            </a>
+                        </td>
+                        <td>{{ raawa.requisitioner_name }}</td>
+                        <td><span class="badge bg-info">{{ raawa.region }}</span></td>
+                        <td>{{ raawa.facility_manager.first_name if raawa.facility_manager else 'N/A' }}</td>
+                        <td>{{ raawa.security.first_name if raawa.security else 'N/A' }}</td>
+                        <td>
+                            {% if raawa.status == 'draft' %}
+                                <span class="badge bg-secondary">Draft</span>
+                            {% elif raawa.status == 'fm_pending' %}
+                                <span class="badge bg-warning">FM Pending</span>
+                            {% elif raawa.status == 'security_pending' %}
+                                <span class="badge bg-info">Security Pending</span>
+                            {% elif raawa.status == 'approved' %}
+                                <span class="badge bg-success">Approved</span>
+                            {% elif raawa.status == 'expired' %}
+                                <span class="badge bg-danger">Expired</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ raawa.created_at[:10] }}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('raawa_details', raawa_id=raawa.id) }}" class="btn btn-primary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                {% if raawa.status != 'approved' and raawa.status != 'expired' %}
+                                    <a href="{{ url_for('download_raawa', raawa_id=raawa.id) }}" class="btn btn-success">
+                                        <i class="fas fa-download"></i>
+                                    </a>
+                                {% elif raawa.status == 'approved' %}
+                                    <a href="{{ url_for('download_raawa', raawa_id=raawa.id) }}" class="btn btn-success">
+                                        <i class="fas fa-file-pdf"></i>
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center">No RAAWAs found</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
