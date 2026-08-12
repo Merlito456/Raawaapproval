@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: raawa-approval-system
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: ./start.sh
+    envVars:
+      - key: SUPABASE_URL
+        value: https://ppmhmbcmbqhgqelfdnvk.supabase.co
+      - key: SUPABASE_KEY
+        value: sb_publishable_5ComPSfppVJ6lWwpYbwA8A_n7HJn6dG
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FLASK_ENV
+        value: production
+      - key: DEBUG
+        value: false
+      - key: PYTHON_VERSION
+        value: 3.11.4
+      - key: PORT
+        value: 10000
