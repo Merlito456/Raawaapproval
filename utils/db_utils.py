@@ -3,13 +3,25 @@ from datetime import datetime, timedelta
 import hashlib
 import secrets
 import json
-import re
 import os
 from config import Config
 
 class SupabaseDB:
     def __init__(self):
-        self.supabase = create_client(Config.SUPABASE_URL, Config.SUPABASE_KEY)
+        # Validate credentials before creating client
+        if not Config.SUPABASE_URL or not Config.SUPABASE_KEY:
+            raise ValueError(
+                "Supabase credentials not configured. "
+                "Please set SUPABASE_URL and SUPABASE_KEY environment variables."
+            )
+        
+        try:
+            self.supabase = create_client(Config.SUPABASE_URL, Config.SUPABASE_KEY)
+            print("Supabase client initialized successfully")
+        except Exception as e:
+            print(f"Error initializing Supabase client: {e}")
+            raise
+        
         self._ensure_superadmin()
     
     def _ensure_superadmin(self):
@@ -33,14 +45,18 @@ class SupabaseDB:
                     'is_active': True
                 }
                 
-                self.supabase.table('users')\
+                response = self.supabase.table('users')\
                     .insert(user_data)\
                     .execute()
-                print("Superadmin account created successfully!")
-                print(f"Username: {Config.SUPERADMIN_USERNAME}")
-                print(f"Password: {Config.SUPERADMIN_PASSWORD}")
+                
+                if response.data:
+                    print("✅ Superadmin account created successfully!")
+                    print(f"   Username: {Config.SUPERADMIN_USERNAME}")
+                    print(f"   Password: {Config.SUPERADMIN_PASSWORD}")
+                else:
+                    print("⚠️ Failed to create superadmin account")
         except Exception as e:
-            print(f"Error ensuring superadmin: {e}")
+            print(f"⚠️ Error ensuring superadmin: {e}")
     
     def hash_password(self, password):
         """Hash password with salt"""
@@ -145,6 +161,19 @@ class SupabaseDB:
         except Exception as e:
             return False, str(e)
     
+    def update_user(self, user_id, user_data):
+        """Update user information"""
+        try:
+            user_data['updated_at'] = datetime.now().isoformat()
+            response = self.supabase.table('users')\
+                .update(user_data)\
+                .eq('id', user_id)\
+                .execute()
+            return bool(response.data)
+        except Exception as e:
+            print(f"Error updating user: {e}")
+            return False
+    
     # ============ APPROVERS MANAGEMENT ============
     def create_approver(self, approver_data):
         """Create a new approver (superadmin only)"""
@@ -203,7 +232,6 @@ class SupabaseDB:
     def get_all_approvers(self):
         """Get all approvers"""
         try:
-            # Get approvers with user info
             response = self.supabase.table('approvers')\
                 .select('*')\
                 .order('created_at', desc=True)\
@@ -277,6 +305,19 @@ class SupabaseDB:
         except Exception as e:
             print(f"Error getting approver name: {e}")
             return "Unknown"
+    
+    def update_approver(self, approver_id, approver_data):
+        """Update approver information"""
+        try:
+            approver_data['updated_at'] = datetime.now().isoformat()
+            response = self.supabase.table('approvers')\
+                .update(approver_data)\
+                .eq('id', approver_id)\
+                .execute()
+            return bool(response.data)
+        except Exception as e:
+            print(f"Error updating approver: {e}")
+            return False
     
     # ============ RAAWA MANAGEMENT ============
     def generate_raawa_number(self, region):
