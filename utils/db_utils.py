@@ -34,12 +34,11 @@ class SupabaseDB:
                 .execute()
             
             if not response.data or len(response.data) == 0:
-                # Create superadmin
-                password_hash = self.hash_password(Config.SUPERADMIN_PASSWORD)
+                # Create superadmin with plain text password
                 user_data = {
                     'username': Config.SUPERADMIN_USERNAME,
                     'email': Config.SUPERADMIN_EMAIL,
-                    'password_hash': password_hash,
+                    'password_hash': Config.SUPERADMIN_PASSWORD,  # Plain text
                     'full_name': Config.SUPERADMIN_FULLNAME,
                     'role': 'superadmin',
                     'is_active': True
@@ -59,21 +58,12 @@ class SupabaseDB:
             print(f"⚠️ Error ensuring superadmin: {e}")
     
     def hash_password(self, password):
-        """Hash password with salt"""
-        salt = secrets.token_hex(16)
-        hash_obj = hashlib.sha256((password + salt).encode())
-        return f"{salt}:{hash_obj.hexdigest()}"
+        """Return plain text password (no hashing)"""
+        return password  # Disabled hashing
     
-    def verify_password(self, stored_hash, password):
-        """Verify password against stored hash"""
-        try:
-            if ':' not in stored_hash:
-                return False
-            salt, hash_value = stored_hash.split(':')
-            hash_obj = hashlib.sha256((password + salt).encode())
-            return hash_obj.hexdigest() == hash_value
-        except:
-            return False
+    def verify_password(self, stored_password, password):
+        """Verify plain text password"""
+        return stored_password == password  # Direct comparison
     
     # ============ USER AUTHENTICATION ============
     def authenticate_user(self, username, password):
@@ -86,7 +76,8 @@ class SupabaseDB:
             
             if response.data and len(response.data) > 0:
                 user = response.data[0]
-                if self.verify_password(user['password_hash'], password):
+                # Plain text password verification
+                if user['password_hash'] == password:
                     return user
             return None
         except Exception as e:
@@ -124,7 +115,7 @@ class SupabaseDB:
             return None
     
     def register_user(self, username, email, password, full_name, company, position):
-        """Register a new user"""
+        """Register a new user with plain text password"""
         try:
             # Check if username exists
             existing = self.get_user_by_username(username)
@@ -139,11 +130,11 @@ class SupabaseDB:
             if response.data and len(response.data) > 0:
                 return False, "Email already registered"
             
-            password_hash = self.hash_password(password)
+            # Store password as plain text
             user_data = {
                 'username': username,
                 'email': email,
-                'password_hash': password_hash,
+                'password_hash': password,  # Plain text
                 'full_name': full_name,
                 'company': company or '',
                 'position': position or '',
@@ -164,6 +155,10 @@ class SupabaseDB:
     def update_user(self, user_id, user_data):
         """Update user information"""
         try:
+            # If password is being updated, store as plain text
+            if 'password' in user_data:
+                user_data['password_hash'] = user_data.pop('password')
+            
             user_data['updated_at'] = datetime.now().isoformat()
             response = self.supabase.table('users')\
                 .update(user_data)\
@@ -176,20 +171,21 @@ class SupabaseDB:
     
     # ============ APPROVERS MANAGEMENT ============
     def create_approver(self, approver_data):
-        """Create a new approver (superadmin only)"""
+        """Create a new approver with plain text password"""
         try:
             # Check if username exists
             existing = self.get_user_by_username(approver_data['username'])
             if existing:
                 return False, "Username already exists"
             
-            password_hash = self.hash_password(approver_data['password'])
+            # Store password as plain text
+            password = approver_data['password']
             
             # Create user account first
             user_data = {
                 'username': approver_data['username'],
                 'email': f"{approver_data['username']}@raawa.com",
-                'password_hash': password_hash,
+                'password_hash': password,  # Plain text
                 'full_name': f"{approver_data['first_name']} {approver_data['last_name']}",
                 'role': 'approver',
                 'is_active': True
@@ -210,7 +206,7 @@ class SupabaseDB:
                 'first_name': approver_data['first_name'],
                 'contact_no': approver_data.get('contact_no', ''),
                 'username': approver_data['username'],
-                'password_hash': password_hash,
+                'password_hash': password,  # Plain text
                 'role_type': approver_data['role_type'],
                 'region': approver_data.get('region', ''),
                 'created_by': approver_data['created_by'],
@@ -309,6 +305,10 @@ class SupabaseDB:
     def update_approver(self, approver_id, approver_data):
         """Update approver information"""
         try:
+            # If password is being updated, store as plain text
+            if 'password' in approver_data:
+                approver_data['password_hash'] = approver_data.pop('password')
+            
             approver_data['updated_at'] = datetime.now().isoformat()
             response = self.supabase.table('approvers')\
                 .update(approver_data)\
