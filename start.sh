@@ -1,6 +1,10 @@
 #!/bin/bash
 
-# Set environment variables explicitly with the ANON key
+# Set DNS servers
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+
+# Set environment variables
 export SUPABASE_URL="https://ppmhmbcmbqhgqelfdnvk.supabase.co"
 export SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBwbWhtYmNtYnFoZ3FlbGZkbnZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MjkxMjcsImV4cCI6MjEwMjEwNTEyN30.uUceevaFmeMUbZvRyqz6XK_mMOjQ7BBPnj4THMNZbho"
 export SECRET_KEY="df89c312430a47299f02e493b972250b"
