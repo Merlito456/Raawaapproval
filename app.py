@@ -416,4 +416,306 @@ def verify_raawa():
                 'expires_at': raawa.get('expires_at')
             })
         else:
-            return json
+            return jsonify({'found': False})
+    
+    return render_template('verification.html')
+
+@app.route('/verify_esignature', methods=['POST'])
+@login_required
+def verify_esignature():
+    if not db:
+        return jsonify({'error': 'Database connection unavailable'}), 500
+    
+    esig_ref = request.get_json().get('esig_ref')
+    if not esig_ref:
+        return jsonify({'error': 'ESig reference required'}), 400
+    
+    raawa = db.get_raawa_by_esig_ref(esig_ref)
+    
+    if raawa:
+        # Get approver name
+        approver_name = "Unknown"
+        if raawa.get('facility_manager_signature'):
+            approver_name = db.get_approver_name(raawa.get('facility_manager_id'))
+        elif raawa.get('security_signature'):
+            approver_name = db.get_approver_name(raawa.get('security_id'))
+        
+        return jsonify({
+            'found': True,
+            'raawa_no': raawa['raawa_no'],
+            'approver': approver_name,
+            'approval_date': raawa.get('approved_at'),
+            'status': raawa['status']
+        })
+    else:
+        return jsonify({'found': False})
+
+@app.route('/messages')
+@login_required
+def messages():
+    if not db:
+        flash('Database connection unavailable', 'danger')
+        return render_template('messaging.html', messages=[], users=[])
+    
+    messages = db.get_messages(current_user.id)
+    users = db.get_all_users()
+    
+    return render_template('messaging.html', 
+                         messages=messages,
+                         users=users)
+
+@app.route('/admin/approvers', methods=['GET', 'POST'])
+@superadmin_required
+def admin_approvers():
+    if not db:
+        flash('Database connection unavailable', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        # Validate required fields
+        required_fields = ['last_name', 'first_name', 'username', 'password', 'role_type']
+        for field in required_fields:
+            if not request.form.get(field):
+                flash(f'{field.replace("_", " ").title()} is required', 'danger')
+                return redirect(url_for('admin_approvers'))
+        
+        # Validate password strength
+        from utils.auth import validate_password_strength
+        valid, message = validate_password_strength(request.form.get('password'))
+        if not valid:
+            flash(message, 'danger')
+            return redirect(url_for('admin_approvers'))
+        
+        approver_data = {
+            'last_name': request.form.get('last_name'),
+            'first_name': request.form.get('first_name'),
+            'contact_no': request.form.get('contact_no', ''),
+            'username': request.form.get('username'),
+            'password': request.form.get('password'),
+            'role_type': request.form.get('role_type'),
+            'region': request.form.get('region', ''),
+            'created_by': current_user.id
+        }
+        
+        success, message = db.create_approver(approver_data)
+        if success:
+            flash('Approver created successfully', 'success')
+            db.log_activity(current_user.id, 'create_approver', 
+                          {'username': approver_data['username']},
+                          ip=request.remote_addr, user_agent=request.headers.get('User-Agent'))
+        else:
+            flash(f'Failed to create approver: {message}', 'danger')
+        
+        return redirect(url_for('admin_approvers'))
+    
+    approvers = db.get_all_approvers()
+    return render_template('admin.html', approvers=approvers)
+
+@app.route('/download_raawa/<raawa_id>')
+@login_required
+def download_raawa(raawa_id):
+    if not db:
+        flash('Database connection unavailable', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    raawa = db.get_raawa_by_id(raawa_id)
+    if not raawa:
+        flash('RAAWA not found', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Check access
+    from utils.auth import can_view_raawa
+    if not can_view_raawa(current_user, raawa):
+        flash('Access denied', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    if raawa['status'] == 'approved':
+        file_path = raawa.get('final_file_path')
+        file_type = 'pdf'
+    else:
+        file_path = raawa.get('file_path')
+        file_type = 'xlsx'
+    
+    if not file_path or not os.path.exists(file_path):
+        flash('File not found', 'danger')
+        return redirect(url_for('raawa_details', raawa_id=raawa_id))
+    
+    db.log_activity(current_user.id, 'download_raawa', 
+                  {'raawa_no': raawa['raawa_no'], 'type': file_type},
+                  ip=request.remote_addr, user_agent=request.headers.get('User-Agent'))
+    
+    return send_file(file_path, as_attachment=True, 
+                    download_name=f"RAAWA_{raawa['raawa_no']}.{file_type}")
+
+# ==================== API ROUTES ====================
+
+@app.route('/api/notification-count')
+@login_required
+def get_notification_count():
+    if not db:
+        return jsonify({'count': 0})
+    
+    count = db.get_unread_notification_count(current_user.id)
+    return jsonify({'count': count})
+
+@app.route('/api/raawa/<raawa_id>/status')
+@login_required
+def get_raawa_status(raawa_id):
+    if not db:
+        return jsonify({'error': 'Database connection unavailable'}), 500
+    
+    raawa = db.get_raawa_by_id(raawa_id)
+    if not raawa:
+        return jsonify({'error': 'RAAWA not found'}), 404
+    
+    from utils.auth import can_view_raawa
+    if not can_view_raawa(current_user, raawa):
+        return jsonify({'error': 'Access denied'}), 403
+    
+    return jsonify({
+        'raawa_no': raawa['raawa_no'],
+        'status': raawa['status'],
+        'updated_at': raawa.get('updated_at')
+    })
+
+@app.route('/api/raawa/search')
+@login_required
+def search_raawa():
+    if not db:
+        return jsonify({'results': []})
+    
+    query = request.args.get('q', '').strip()
+    if len(query) < 3:
+        return jsonify({'results': []})
+    
+    # Get RAAWAs based on user role
+    raawas = db.get_raawas_for_user(current_user.id, current_user.role)
+    results = []
+    
+    for r in raawas:
+        if query.lower() in r['raawa_no'].lower() or \
+           query.lower() in r['requisitioner_name'].lower() or \
+           query.lower() in r.get('department_group', '').lower():
+            results.append({
+                'id': r['id'],
+                'raawa_no': r['raawa_no'],
+                'requisitioner': r['requisitioner_name'],
+                'status': r['status'],
+                'region': r['region']
+            })
+    
+    return jsonify({'results': results[:20]})
+
+@app.route('/api/notifications/mark-read', methods=['POST'])
+@login_required
+def mark_notifications_read():
+    if not db:
+        return jsonify({'success': False, 'error': 'Database connection unavailable'}), 500
+    
+    data = request.get_json()
+    if data and data.get('all'):
+        db.mark_all_notifications_read(current_user.id)
+    else:
+        notification_id = data.get('notification_id')
+        if notification_id:
+            db.mark_notification_read(notification_id)
+    
+    return jsonify({'success': True})
+
+# ==================== WEBSOCKET EVENTS ====================
+
+@socketio.on('connect')
+def handle_connect():
+    if current_user.is_authenticated:
+        # Join user's personal room
+        join_room(f"user_{current_user.id}")
+        
+        # Join regional rooms
+        if db:
+            approver = db.get_approver_by_user_id(current_user.id)
+            if approver and approver.get('region'):
+                join_room(f"region_{approver['region']}")
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    pass
+
+@socketio.on('send_message')
+def handle_send_message(data):
+    if not current_user.is_authenticated or not db:
+        return
+    
+    message_type = data.get('message_type')
+    content = data.get('content')
+    
+    if not content:
+        return
+    
+    message_data = {
+        'sender_id': current_user.id,
+        'recipient_id': data.get('recipient_id'),
+        'message_type': message_type,
+        'region': data.get('region'),
+        'content': content
+    }
+    
+    message_id = db.create_message(message_data)
+    if message_id:
+        message = db.get_message(message_id)
+        
+        # Emit to appropriate rooms
+        if message_type == 'dm' and data.get('recipient_id'):
+            emit('new_message', message, room=f"user_{data['recipient_id']}")
+            emit('new_message', message, room=f"user_{current_user.id}")
+        elif message_type == 'regional' and data.get('region'):
+            emit('new_message', message, room=f"region_{data['region']}")
+        else:
+            # Global message
+            emit('new_message', message, broadcast=True)
+
+@socketio.on('join_room')
+def handle_join_room(data):
+    room = data.get('room')
+    if room:
+        join_room(room)
+
+@socketio.on('leave_room')
+def handle_leave_room(data):
+    room = data.get('room')
+    if room:
+        leave_room(room)
+
+# ==================== CONTEXT PROCESSORS ====================
+
+@app.context_processor
+def utility_processor():
+    return {
+        'now': datetime.now(),
+        'current_year': datetime.now().year,
+        'regions': Config.REGIONS
+    }
+
+# ==================== ERROR HANDLERS ====================
+
+@app.errorhandler(404)
+def not_found(error):
+    return render_template('404.html'), 404
+
+@app.errorhandler(403)
+def forbidden(error):
+    return render_template('403.html'), 403
+
+@app.errorhandler(500)
+def internal_error(error):
+    return render_template('500.html'), 500
+
+# ==================== CREATE UPLOAD FOLDER ====================
+
+if not os.path.exists(Config.UPLOAD_FOLDER):
+    os.makedirs(Config.UPLOAD_FOLDER)
+
+# ==================== RUN APPLICATION ====================
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    socketio.run(app, debug=False, host='0.0.0.0', port=port)
